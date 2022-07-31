@@ -7,7 +7,6 @@ use indicatif::ParallelProgressIterator;
 use nalgebra::Vector3;
 use rand::Rng;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::fmt::Write;
 
 #[derive(Clone, Copy)]
 pub struct RayTraceOptions {
@@ -56,16 +55,15 @@ pub fn generate_ppm(
         .into_par_iter()
         .rev()
         .progress()
-        .flat_map(|y| {
+        .map(|y| {
             (0..image_width)
                 .flat_map(|x| {
                     let color: Vector3<f32> = (0..rt_options.samples_per_pixel)
                         .map(|_| {
                             let mut rng = rand::thread_rng();
 
-                            let u = (x as f32 + rng.gen_range(0.0..1.0)) / (image_width - 1) as f32;
-                            let v =
-                                (y as f32 + rng.gen_range(0.0..1.0)) / (image_height - 1) as f32;
+                            let u = (x as f32 + rng.gen::<f32>()) / (image_width - 1) as f32;
+                            let v = (y as f32 + rng.gen::<f32>()) / (image_height - 1) as f32;
                             let ray = camera.get_ray(u, v);
 
                             ray_color(&ray, world, rt_options.max_depth)
@@ -75,21 +73,21 @@ pub fn generate_ppm(
                     color
                         .iter()
                         .map(|c| {
-                            // average rays, perform gamma correction and scaling
-                            ((c / rt_options.samples_per_pixel as f32).sqrt() * 255.99) as u8
+                            // average rays, perform gamma correction and scaling, before converting to string
+                            (((c / rt_options.samples_per_pixel as f32).sqrt() * 255.99) as u8)
+                                .to_string()
                         })
-                        .collect::<Vec<u8>>()
+                        .collect::<Vec<String>>()
                 })
-                .collect::<Vec<u8>>()
+                .collect::<Vec<String>>()
+                .join(" ")
         })
-        .collect::<Vec<u8>>();
+        .collect::<Vec<String>>()
+        // separate every scanline with a newline
+        .join("\n");
 
-    for scanline in image.chunks(image_width as usize) {
-        for pixel in scanline.chunks(3) {
-            write!(output, "{} {} {} ", pixel[0], pixel[1], pixel[2]).unwrap();
-        }
-        output.push('\n');
-    }
+    // add the image to the output buffer
+    output.push_str(&image);
 
     output
 }
