@@ -1,9 +1,5 @@
-use super::{
-    camera::Camera,
-    hittable::{Hittable, HittableList},
-    ray::Ray,
-};
-use indicatif::ParallelProgressIterator;
+use super::{camera::Camera, hittable::Hittable, ray::Ray};
+use indicatif::{ParallelProgressIterator, ProgressStyle};
 use nalgebra::Vector3;
 use rand::Rng;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -23,7 +19,7 @@ impl RayTraceOptions {
     }
 }
 
-fn ray_color(ray: &Ray, world: &HittableList, depth: u32) -> Vector3<f32> {
+fn ray_color(ray: &Ray, world: &dyn Hittable, depth: u32) -> Vector3<f32> {
     if depth == 0 {
         return Vector3::<f32>::zeros();
     }
@@ -36,16 +32,16 @@ fn ray_color(ray: &Ray, world: &HittableList, depth: u32) -> Vector3<f32> {
     };
 
     let unit_direction = ray.direction.normalize();
-    let t = 0.5 * (unit_direction.y + 1.0);
+    let t = 0.5 * (unit_direction.y + 1.);
 
-    (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
+    (1. - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
 }
 
-pub fn generate_ppm(
+pub fn render_ppm(
     resolution: [u32; 2],
     camera: &Camera,
-    world: &HittableList,
-    rt_options: RayTraceOptions,
+    world: &dyn Hittable,
+    rt_options: &RayTraceOptions,
 ) -> String {
     let [image_width, image_height] = resolution;
 
@@ -54,7 +50,13 @@ pub fn generate_ppm(
     let image = (0..image_height)
         .into_par_iter()
         .rev()
-        .progress()
+        .progress_with_style(
+            ProgressStyle::with_template(
+                "{spinner} {pos}/{len} ({percent}%) {wide_bar:.red} [Elapsed: {elapsed_precise}] ",
+            )
+            .unwrap(),
+        )
+        // .progress()
         .map(|y| {
             (0..image_width)
                 .flat_map(|x| {
@@ -86,8 +88,9 @@ pub fn generate_ppm(
         // separate every scanline with a newline
         .join("\n");
 
-    // add the image to the output buffer
+    // add the image to the output string
     output.push_str(&image);
+    output.push('\n');
 
     output
 }

@@ -1,5 +1,6 @@
-use super::{material::random_in_unit_disk, ray::Ray};
+use super::{material::random_in_unit_disk, moving::Timespan, ray::Ray};
 use nalgebra::Vector3;
+use rand::Rng;
 
 pub struct Camera {
     pub pos: Vector3<f32>,
@@ -10,6 +11,7 @@ pub struct Camera {
     pub u: Vector3<f32>,
     pub v: Vector3<f32>,
     pub lens_radius: f32,
+    pub shutter_opened: Timespan,
 }
 
 pub struct CameraBuilder {
@@ -20,6 +22,7 @@ pub struct CameraBuilder {
     pub aspect_ratio: f32,
     pub aperture: f32,
     pub focus_dist: f32,
+    pub shutter_opened: Timespan,
 }
 
 impl CameraBuilder {
@@ -58,6 +61,11 @@ impl CameraBuilder {
         self
     }
 
+    pub fn shutter_opened(mut self, shutter_opened: Timespan) -> Self {
+        self.shutter_opened = shutter_opened;
+        self
+    }
+
     pub fn build(self) -> Camera {
         Camera::create(self)
     }
@@ -73,6 +81,7 @@ impl Default for CameraBuilder {
             aspect_ratio: 16. / 9.,
             aperture: 0.1,
             focus_dist: 10.,
+            shutter_opened: Timespan::new(0., 0.),
         }
     }
 }
@@ -93,7 +102,6 @@ impl Camera {
         let viewport_height = 2. * h;
         let viewport_width = builder.aspect_ratio * viewport_height;
 
-        // let focal_length = 1.0;
         let pos = builder.pos;
 
         let w = (pos - builder.lookat).normalize();
@@ -113,6 +121,7 @@ impl Camera {
             u,
             v,
             lens_radius: builder.aperture / 2.,
+            shutter_opened: builder.shutter_opened,
         }
     }
 
@@ -120,9 +129,13 @@ impl Camera {
         let random = self.lens_radius * random_in_unit_disk();
         let offset = self.u * random.x + self.v * random.y;
 
+        let mut rng = rand::thread_rng();
+        let time = rng.gen_range(self.shutter_opened.start..=self.shutter_opened.end);
+
         Ray::new(
             self.pos + offset,
             self.lower_left_corner + s * self.horizontal + t * self.vertical - self.pos - offset,
+            time,
         )
     }
 }

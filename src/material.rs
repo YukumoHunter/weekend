@@ -1,6 +1,10 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Debug, sync::Arc};
 
-use super::{hittable::HitRecord, ray::Ray};
+use super::{
+    hittable::HitRecord,
+    ray::Ray,
+    texture::{SolidColor, Texture},
+};
 use nalgebra::{Vector2, Vector3};
 use rand::Rng;
 
@@ -67,36 +71,54 @@ pub trait Material: Sync + Send {
     fn scatter(&self, ray_in: &Ray, hit_record: &HitRecord) -> Option<Scatter>;
 }
 
+#[derive(Debug)]
 pub struct Lambertian {
-    pub albedo: Vector3<f32>,
+    pub albedo: Arc<dyn Texture>,
 }
 
 impl Lambertian {
-    pub fn new(albedo: Vector3<f32>) -> Self {
+    pub fn new(albedo: Arc<dyn Texture>) -> Self {
         Self { albedo }
+    }
+
+    pub fn from_color(color: Vector3<f32>) -> Self {
+        Self {
+            albedo: Arc::new(SolidColor::new(color)),
+        }
     }
 }
 
 impl Material for Lambertian {
-    fn scatter(&self, _ray_in: &Ray, hit_record: &HitRecord) -> Option<Scatter> {
+    fn scatter(&self, ray_in: &Ray, hit_record: &HitRecord) -> Option<Scatter> {
         let scatter_dir = hit_record.normal + random_in_unit_sphere().normalize();
-        let ray = Ray::new(hit_record.p, scatter_dir);
+        let ray = Ray::new(hit_record.p, scatter_dir, ray_in.time);
 
         // TODO: catch all-zero scatter position
 
-        Some(Scatter::new(ray, self.albedo))
+        Some(Scatter::new(
+            ray,
+            self.albedo.value(&hit_record.uv, &hit_record.p),
+        ))
     }
 }
 
+#[derive(Debug)]
 pub struct Metal {
-    pub albedo: Vector3<f32>,
+    pub albedo: Arc<dyn Texture>,
     pub fuzziness: f32,
 }
 
 impl Metal {
-    pub fn new(albedo: Vector3<f32>, fuzziness: f32) -> Self {
+    pub fn new(albedo: Arc<dyn Texture>, fuzziness: f32) -> Self {
         Self {
             albedo,
+            fuzziness: fuzziness.min(1.).max(0.),
+        }
+    }
+
+    pub fn from_color(color: Vector3<f32>, fuzziness: f32) -> Self {
+        Self {
+            albedo: Arc::new(SolidColor::new(color)),
             fuzziness: fuzziness.min(1.).max(0.),
         }
     }
@@ -108,15 +130,20 @@ impl Material for Metal {
         let ray = Ray::new(
             hit_record.p,
             reflected + self.fuzziness * random_in_unit_sphere().normalize(),
+            ray_in.time,
         );
 
         match ray.direction.dot(&hit_record.normal).partial_cmp(&0.) {
-            Some(Ordering::Greater) => Some(Scatter::new(ray, self.albedo)),
+            Some(Ordering::Greater) => Some(Scatter::new(
+                ray,
+                self.albedo.value(&hit_record.uv, &hit_record.p),
+            )),
             _ => None,
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Dielectric {
     // index of reflection
     pub ir: f32,
@@ -164,7 +191,7 @@ impl Material for Dielectric {
             refract(&unit_direction, &normal_outward_facing, refraction_ratio)
         };
 
-        let ray = Ray::new(hit_record.p, direction);
+        let ray = Ray::new(hit_record.p, direction, ray_in.time);
 
         Some(Scatter::new(ray, attenuation))
     }
