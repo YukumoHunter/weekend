@@ -10,7 +10,7 @@ cargo build --release
 ```
 Upon running the program, a progress bar powered by [`indicatif`](https://github.com/console-rs/indicatif) will show the rendering progress per scanline.
 ## Performance
-The image above rendered in ~22 minutes on a laptop equipped with an AMD Ryzen 5 4500U. It was rendered at a resolution of 1200x800 with 1000 samples per pixel and a maximum of 50 bounces
+The image above rendered in ~22 minutes on a laptop equipped with an AMD Ryzen 5 4500U. It was rendered at a resolution of 1200x800 with 1000 samples per pixel and a maximum of 50 bounces. It renders significantly faster on the `next-week` branch where a BVH is implemented.
 
 In order to improve performance, I used vector classes from [`nalgebra`](https://github.com/dimforge/nalgebra) and scanlines are rendered in parallel using [`rayon`](https://github.com/rayon-rs/rayon).
 
